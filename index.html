@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Книга — Flip Book</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+
+    header {
+      flex-shrink: 0;
+      text-align: center;
+      padding: 10px 14px;
+      color: #e8e8e8;
+      background: rgba(0,0,0,0.3);
+    }
+    header h1 { font-size: clamp(1rem, 4vw, 1.3rem); font-weight: 500; }
+    header p  { font-size: 0.8rem; opacity: 0.7; margin-top: 3px; }
+
+    #book-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      min-height: 0;
+      position: relative;
+    }
+
+    #flipbook { margin: 0 auto; }
+
+    .controls {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 10px 14px 16px;
+      background: rgba(0,0,0,0.35);
+    }
+
+    .controls button {
+      background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.3);
+      color: #fff;
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      font-size: 1.5rem;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      -webkit-tap-highlight-color: transparent;
+      transition: background .2s, transform .15s;
+    }
+    .controls button:hover { background: rgba(255,255,255,0.25); }
+    .controls button:active { transform: scale(0.9); }
+    .controls button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .page-info {
+      color: #eee;
+      font-size: 0.95rem;
+      min-width: 70px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .msg {
+      text-align: center;
+      color: #ddd;
+      padding: 24px 18px;
+      max-width: 460px;
+      line-height: 1.5;
+    }
+    .msg h2 { color: #fff; font-size: 1.2rem; margin-bottom: 12px; }
+    .msg code {
+      background: rgba(255,255,255,0.12);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.88em;
+    }
+    .msg ul {
+      text-align: left;
+      display: inline-block;
+      margin: 10px 0;
+      font-size: 0.9rem;
+    }
+    .msg .found { color: #8f8; }
+    .msg .miss  { color: #f88; opacity: 0.7; }
+
+    .hint {
+      position: absolute;
+      bottom: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      opacity: 0;
+      transition: opacity .5s;
+      pointer-events: none;
+      z-index: 20;
+      white-space: nowrap;
+    }
+    .hint.show { opacity: 1; }
+
+    @media (max-width: 500px) {
+      .controls button { width: 44px; height: 44px; }
+    }
+    @media (orientation: landscape) and (max-height: 480px) {
+      header { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>📖 Моя книга</h1>
+      <p>Листайте как настоящую книгу</p>
+    </header>
+
+    <div id="book-container">
+      <div class="msg" id="status">
+        <h2>Ищем фотографии…</h2>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-prev" disabled>‹</button>
+      <div class="page-info">
+        <span id="page-current">–</span> / <span id="page-total">–</span>
+      </div>
+      <button id="btn-next" disabled>›</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/page-flip@2.0.7/dist/js/page-flip.browser.min.js"></script>
+
+  <script>
+    // ============================================================
+    //  СПИСОК ФОТО — добавьте сюда точные имена ваших файлов
+    // ============================================================
+    const MANUAL_LIST = [
+      // Раскомментируйте и напишите свои имена:
+      // "1.jpg",
+      // "2.jpg",
+      // "photo.jpg",
+    ];
+
+    // Автоматический поиск (если MANUAL_LIST пустой)
+    // Пробует: 1.jpg, 01.jpg, 001.jpg, page1.jpg, img1.jpg и т.д.
+    const MAX_PAGES = 40;
+
+    // ============================================================
+
+    const container = document.getElementById("book-container");
+    const statusEl  = document.getElementById("status");
+    const btnPrev   = document.getElementById("btn-prev");
+    const btnNext   = document.getElementById("btn-next");
+    const pageCur   = document.getElementById("page-current");
+    const pageTot   = document.getElementById("page-total");
+
+    let pageFlip = null;
+
+    function checkImage(src) {
+      return new Promise(resolve => {
+        const img = new Image();
+        const t = setTimeout(() => { img.src = ""; resolve(null); }, 4000);
+        img.onload  = () => { clearTimeout(t); resolve(src); };
+        img.onerror = () => { clearTimeout(t); resolve(null); };
+        // cache-bust чтобы не брать старую 404 из кэша
+        img.src = src + (src.includes("?") ? "&" : "?") + "t=" + Date.now();
+      });
+    }
+
+    function buildCandidates() {
+      if (MANUAL_LIST.length > 0) return MANUAL_LIST.slice();
+
+      const list = [];
+      const exts = ["jpg", "jpeg", "png", "webp", "JPG", "JPEG", "PNG"];
+
+      for (let i = 1; i <= MAX_PAGES; i++) {
+        const n  = String(i);
+        const n2 = n.padStart(2, "0");
+        const n3 = n.padStart(3, "0");
+
+        for (const ext of exts) {
+          list.push(`${n}.${ext}`);
+          list.push(`${n2}.${ext}`);
+          list.push(`${n3}.${ext}`);
+          list.push(`page${n}.${ext}`);
+          list.push(`page${n2}.${ext}`);
+          list.push(`img${n}.${ext}`);
+          list.push(`photo${n}.${ext}`);
+        }
+      }
+      return [...new Set(list)];
+    }
+
+    async function findImages() {
+      const candidates = buildCandidates();
+      statusEl.innerHTML = `<h2>Ищем фотографии…</h2><p>Проверяем ${candidates.length} вариантов имён</p>`;
+
+      const found = [];
+      const batchSize = 10;
+      for (let i = 0; i < candidates.length; i += batchSize) {
+        const batch = candidates.slice(i, i + batchSize);
+        const results = await Promise.all(batch.map(checkImage));
+        results.forEach(r => { if (r) found.push(r); });
+
+        // Если нашли несколько подряд — можно ускорить
+        if (found.length >= 3 && i > 100) break;
+      }
+
+      found.sort((a, b) => {
+        const na = parseInt((a.match(/\d+/) || ["999"])[0]);
+        const nb = parseInt((b.match(/\d+/) || ["999"])[0]);
+        return na - nb || a.localeCompare(b);
+      });
+
+      return found;
+    }
+
+    function showEmpty() {
+      container.innerHTML = `
+        <div class="msg">
+          <h2>Фотографии не найдены</h2>
+          <p>Положите JPG-файлы <b>в ту же папку</b>, где лежит <code>index.html</code>.</p>
+          <p style="margin-top:12px"><b>Самый простой способ:</b></p>
+          <p>Переименуйте фото в:<br>
+            <code>1.jpg</code> &nbsp; <code>2.jpg</code> &nbsp; <code>3.jpg</code> &nbsp; …
+          </p>
+          <p style="margin-top:14px">Или откройте файл <code>index.html</code>, найдите <code>MANUAL_LIST</code> и напишите точные имена ваших файлов.</p>
+        </div>`;
+    }
+
+    async function start() {
+      try {
+        if (typeof St === "undefined" || !St.PageFlip) {
+          container.innerHTML = `<div class="msg"><h2>Ошибка</h2><p>Не удалось загрузить библиотеку. Нужен интернет.</p></div>`;
+          return;
+        }
+
+        const images = await findImages();
+
+        if (images.length === 0) {
+          showEmpty();
+          return;
+        }
+
+        // Показываем, что нашли
+        statusEl.innerHTML = `
+          <h2>Найдено ${images.length} фото</h2>
+          <ul>${images.map(f => `<li class="found">${f}</li>`).join("")}</ul>
+          <p>Загружаем книгу…</p>`;
+        await new Promise(r => setTimeout(r, 800));
+
+        container.innerHTML = "";
+        const bookEl = document.createElement("div");
+        bookEl.id = "flipbook";
+        container.appendChild(bookEl);
+
+        const isMobile = window.innerWidth < 700;
+        let w = isMobile ? Math.min(window.innerWidth - 20, 340) : 420;
+        let h = Math.round(w * 1.4);
+        const maxH = window.innerHeight - 140;
+        if (h > maxH) { h = maxH; w = Math.round(h / 1.4); }
+
+        pageFlip = new St.PageFlip(bookEl, {
+          width: w,
+          height: h,
+          size: "stretch",
+          minWidth: 240,
+          maxWidth: 1200,
+          minHeight: 300,
+          maxHeight: 1600,
+          drawShadow: true,
+          flippingTime: 700,
+          usePortrait: true,
+          startPage: 0,
+          autoSize: true,
+          maxShadowOpacity: 0.5,
+          showCover: false,
+          mobileScrollSupport: false,
+          clickEventForward: true,
+          useMouseEvents: true,
+          swipeDistance: 25,
+          showPageCorners: true
+        });
+
+        pageFlip.loadFromImages(images);
+
+        function updateUI() {
+          const cur = pageFlip.getCurrentPageIndex() + 1;
+          const tot = pageFlip.getPageCount();
+          pageCur.textContent = cur;
+          pageTot.textContent = tot;
+          btnPrev.disabled = cur <= 1;
+          btnNext.disabled = cur >= tot;
+        }
+
+        pageFlip.on("flip", updateUI);
+        pageFlip.on("changeState", updateUI);
+        pageFlip.on("init", () => {
+          updateUI();
+          const hint = document.createElement("div");
+          hint.className = "hint";
+          hint.textContent = "Листайте пальцем или кнопками ‹ ›";
+          container.appendChild(hint);
+          setTimeout(() => {
+            hint.classList.add("show");
+            setTimeout(() => hint.classList.remove("show"), 3500);
+          }, 500);
+        });
+
+        btnPrev.addEventListener("click", () => pageFlip.flipPrev());
+        btnNext.addEventListener("click", () => pageFlip.flipNext());
+
+        document.addEventListener("keydown", e => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowUp") pageFlip.flipPrev();
+          if (e.key === "ArrowRight" || e.key === "ArrowDown") pageFlip.flipNext();
+        });
+
+      } catch (err) {
+        console.error(err);
+        container.innerHTML = `<div class="msg"><h2>Ошибка</h2><p>${err.message || err}</p></div>`;
+      }
+    }
+
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", start);
+    } else {
+      start();
+    }
+  </script>
+</body>
+</html>
