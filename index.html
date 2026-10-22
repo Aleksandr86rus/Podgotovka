@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Книга — Flip Book</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    }
+
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      width: 100%;
+    }
+
+    header {
+      flex-shrink: 0;
+      text-align: center;
+      padding: 12px 16px;
+      color: #e8e8e8;
+      background: rgba(0, 0, 0, 0.3);
+    }
+
+    header h1 {
+      font-size: clamp(1rem, 4vw, 1.35rem);
+      font-weight: 500;
+    }
+
+    header p {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 4px;
+    }
+
+    #book-container {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      min-height: 0;
+      position: relative;
+    }
+
+    /* Контейнер книги — библиотека сама создаёт canvas внутри */
+    #flipbook {
+      margin: 0 auto;
+    }
+
+    .controls {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 12px 16px 18px;
+      background: rgba(0, 0, 0, 0.35);
+    }
+
+    .controls button {
+      background: rgba(255, 255, 255, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: #fff;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-size: 1.6rem;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .controls button:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .controls button:active {
+      transform: scale(0.9);
+    }
+
+    .controls button:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .page-info {
+      color: #eee;
+      font-size: 1rem;
+      min-width: 80px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .hint {
+      position: absolute;
+      bottom: 100px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.7);
+      color: #fff;
+      padding: 10px 18px;
+      border-radius: 22px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.5s;
+      pointer-events: none;
+      z-index: 20;
+      white-space: nowrap;
+    }
+
+    .hint.show {
+      opacity: 1;
+    }
+
+    .empty-state, .loading-state {
+      text-align: center;
+      color: #ddd;
+      padding: 30px 20px;
+      max-width: 440px;
+    }
+
+    .empty-state h2, .loading-state h2 {
+      font-size: 1.25rem;
+      margin-bottom: 12px;
+      color: #fff;
+    }
+
+    .empty-state p {
+      line-height: 1.55;
+      margin-bottom: 10px;
+      font-size: 0.95rem;
+    }
+
+    .empty-state code {
+      background: rgba(255,255,255,0.12);
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .loading-state {
+      font-size: 1.1rem;
+    }
+
+    @media (max-width: 500px) {
+      header { padding: 8px 10px; }
+      .controls { padding: 10px 10px 14px; gap: 12px; }
+      .controls button { width: 46px; height: 46px; }
+    }
+
+    @media (orientation: landscape) and (max-height: 480px) {
+      header { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>📖 Моя книга</h1>
+      <p>Листайте как настоящую книгу</p>
+    </header>
+
+    <div id="book-container">
+      <div class="loading-state" id="status">
+        <h2>Загрузка…</h2>
+        <p>Подождите немного</p>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btn-prev" a
+... 
